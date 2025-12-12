@@ -37,7 +37,7 @@ Name Server(s) under your control, this script is careful to attempt DNS
 update only on the Name Servers listed in `NSERVERS` to avoid inadvertently
 failing to authenticate with other DNS servers which you do _not_ control.
 
-`dns` challenge script will use the `DNS UPDATE' utility set to the full
+`dns` challenge script will use the `DNS UPDATE` utility set to the full
 path of the executable in `NSUPDATE`. Otherwise the script will try to find
 [knsupdate](https://www.knot-dns.cz/docs/3.5/html/man_knsupdate.html) or
 fall back to using [nsupdate](https://linux.die.net/man/8/nsupdate).
