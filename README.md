@@ -4,21 +4,28 @@
 A deBASHed rewrite of the [acmetool](https://github.com/hlandau/acmetool/)
 "official" [dns.hook](https://github.com/hlandau/acmetool/blob/master/_doc/contrib/dns.hook)
 script to use either [knsupdate](https://www.knot-dns.cz/docs/3.5/html/man_knsupdate.html)
-or [nsupdate](https://linux.die.net/man/8/nsupdate) (DNS UPDATE).
+or [nsupdate](https://linux.die.net/man/8/nsupdate) to set up and tear down
+a DNS-01 ACME Challenge.
 
-Script is organized into several sections to make it easier to audit:
+## reason for making this rewrite
 
-- 1st section sets up all the script parameters
-- 2nd section sets up all the config `env` vars
-- 3rd get the SOA for the challenge hostname or bail
-- 4th do the update if the SOA exists on the primary Name Server
-- 5th verify the update was pushed to secondary Name Servers
+1. make sure the scritp runs under plain old Bourne Shell
+2. add ability to update more than one Primary Name Server
+3. make the script `k?nsupdate` agnostic
 
-### 1st: get parameters
+The script is organized into several sections to make it easier to audit:
+
+- [1st](#1st-get-parameters) section sets up all the script parameters
+- [2nd](#2nd-get-config) section sets up all the config `env` vars
+- [3rd](#3rd-getsoa) get the SOA for the challenge hostname or bail
+- [4th](#4th-update) do the update if the SOA exists on the primary Name Server
+- [5th](#5th-waitns) verify the update was pushed to secondary Name Servers
+
+### 1st: [get parameters](blob/main/dns#L35)
 
 `dns` challenge script now takes `exit 42` sooner than later if not a DNS event.
 
-### 2nd: get config
+### 2nd: [get config](blob/main/dns#L55)
 
 `dns` challenge script now requires `NSERVERS` is set to at least one
 PRIMARY Name Server. More than one Name Servers can be set to accommodate
@@ -35,7 +42,7 @@ path of the executable in `NSUPDATE`. Otherwise the script will try to find
 [knsupdate](https://www.knot-dns.cz/docs/3.5/html/man_knsupdate.html) or
 fall back to using [nsupdate](https://linux.die.net/man/8/nsupdate).
 
-### 3rd: `getSOA`
+### 3rd: [`getSOA`](blob/main/dns#L90)
 
 `get_apex` rewrittern as `getSOA` using a `while` loop instead of recursion.
 
@@ -53,7 +60,7 @@ not to mention that testing for SOA _and_ CNAME will never reach the CNAME
 part of the test. It's impossible for a DNS record to be both type SOA and
 type CNAME at the same time.
 
-### 4th: `update`
+### 4th: [`update`](blob/main/dns#L116)
 
 `update` rewritten to use the new optional `TSIG_FILE` setting instead of
 `TSIG_KEY` or nither if authenticating updates by source IP.
@@ -66,7 +73,7 @@ instead of a sereas of `echo` statments. The syntax complies with both
 `update` is now in a loop to accomodate multi-master or PRIMARY-PRIMARY
 Name Server setups where the DNS sync is configure out-of-band. e.g. `rsync`
 
-### 5th: `waitns`
+### 5th: [`waitns`](blob/main/dns#L135)
 
 `test` conditions rewritten to help readability.
 IMHO this is easier to comprehend at a glance:
