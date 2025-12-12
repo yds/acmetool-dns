@@ -65,8 +65,8 @@ type CNAME at the same time.
 `update` rewritten to use the new optional `TSIG_FILE` setting instead of
 `TSIG_KEY` or nither if authenticating updates by source IP.
 
-the `nsupdate` code is piped from an easy to read `sh` HERE document
-instead of a sereas of `echo` statments. The syntax complies with both
+the `nsupdate` code is piped from an easy to read `sh` [HERE document](https://en.wikipedia.org/wiki/Here_document)
+instead of a series of `echo` statments. The syntax complies with both
 [nsupdate](https://linux.die.net/man/8/nsupdate) and
 [knsupdate](https://www.knot-dns.cz/docs/3.5/html/man_knsupdate.html).
 
