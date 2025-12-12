@@ -50,7 +50,7 @@ env VERBOSE=show ./dns challenge-dns-stop  example.com '' 'foobar'
 
 ### 3rd: [`getSOA`](dns#L90)
 
-`get_apex` rewrittern as `getSOA` using a `while` loop instead of recursion.
+`get_apex` rewritten as `getSOA` using a `while` loop instead of recursion.
 
 `test` conditions rewritten to help readability.
 IMHO this is easier to comprehend at a glance:
@@ -69,14 +69,14 @@ type CNAME at the same time.
 ### 4th: [`update`](dns#L116)
 
 `update` rewritten to use the new optional `TSIG_FILE` setting instead of
-`TSIG_KEY` or nither if authenticating updates by source IP.
+`TSIG_KEY` or neither if authenticating updates by source IP.
 
-the `nsupdate` code is piped from an easy to read `sh` [HERE document](https://en.wikipedia.org/wiki/Here_document)
-instead of a series of `echo` statments. The syntax complies with both
+The `nsupdate` code is piped from an easy to read `sh` [HERE document](https://en.wikipedia.org/wiki/Here_document)
+instead of a series of `echo` statements. The syntax complies with both
 [nsupdate](https://linux.die.net/man/8/nsupdate) and
 [knsupdate](https://www.knot-dns.cz/docs/3.5/html/man_knsupdate.html).
 
-`update` is now in a loop to accomodate multi-master or PRIMARY-PRIMARY
+`update` is now in a loop to accommodate multi-master or PRIMARY-PRIMARY
 Name Server setups where the DNS sync is configure out-of-band. e.g. `rsync`
 
 ### 5th: [`waitns`](dns#L135)
@@ -91,7 +91,7 @@ than [this](https://github.com/hlandau/acmetool/blob/master/_doc/contrib/dns.hoo
 [ "$(dig +short "@${ns}" TXT "_acme-challenge.${CH_HOSTNAME}." | grep -- "$CH_TXT_VALUE" | wc -l)" == "1" ] && return 0
 ```
 this is the only place in the script where `dig` and `nsupdate` do not use
-the preset `NSERVERS` since by this point in the script, the deiscovered
+the preset `NSERVERS` since by this point in the script, the discovered
 Name Servers should be the same as `NSERVERS` plus secondary if using
 in-band DSN sync.
 
