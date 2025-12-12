@@ -1,0 +1,155 @@
+#!/bin/sh
+# This is an example DNS hook script which uses the [k]nsupdate utility to update
+# NameServers. The script updates all the NameServers listed for a zone directly.
+#
+# `env` options can be set via `${ACME_STATE_DIR}/.env`
+# or in the `env:` section of `${ACME_STATE_DIR}/conf/target`
+#
+# The script is ready to use, but to use it you must set the following options:
+#
+#	# Authoritative Name Server[s] to update, not optional!
+#	# At least one PRIMARY Authoritative Name Server *MUST* be set.
+#	# All Authoritative Name Servers *MUST* be set if all Name Servers
+#	# are configured as PRIMARY when using out-of-band DNS sync, e.g. `rsync`
+#	NSERVERS='a.ns.ip.addr b.ns.ip.addr'
+#
+#	# Optional `tsigfile` to pass to `[k]nsupdate`
+#	# overrides TSIG_KEY* vars if both are set
+#	TSIG_FILE='path to --tsigfile for [k]nsupdate'
+#
+#	# TSIG_FILE or TSIG_KEY* needed if using TSIG for updates.
+#	# Not necessary if authenticating updates by source IP.
+#	TSIG_KEY_NAME='hmac-sha256:acme'
+#	TSIG_KEY='a base64-encoded TSIG key'
+#
+#	# directly set which `nsupdate` to use
+#	NSUPDATE='/full/path/to/nsupdate'
+#	# otherwise autodetect `knsupdate` or use `nsupdate`
+#
+# Having done this, install the script to /usr[/local]/lib[exec]/acme/hooks/dns
+#
+# How to test this script:
+#	env VERBOSE=show ./dns challenge-dns-start example.com '' 'foobar'
+#	env VERBOSE=show ./dns challenge-dns-stop  example.com '' 'foobar'
+#
+#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#
+set -e
+
+EVENT_NAME="$1"
+CH_HOSTNAME="$2"
+CH_TARGET_FILENAME="$3"
+CH_TXT_VALUE="$4"
+
+case "${EVENT_NAME}" in
+challenge-dns-start)
+  EVENT=add
+;;
+challenge-dns-stop)
+  EVENT=delete
+;;
+*)
+  exit 42	# bail out sooner than later
+;;
+esac
+
+#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#
+[ -z "${ACME_STATE_DIR}" ]		&& ACME_STATE_DIR=/var/lib/acme
+[ -r "${ACME_STATE_DIR}/.env" ]		&& . ${ACME_STATE_DIR}/.env		# `.env` makes testing this script easier from CLI
+[ -r "/etc/default/acme-dns" ]		&& . /etc/default/acme-dns		# not the place for non-default configs on FreeBSD :(
+[ -r "/etc/conf.d/acme-dns" ]		&& . /etc/conf.d/acme-dns		# betterer to use ${ACME_STATE_DIR}/conf/target `env:`
+[ -n "${TKIP_KEY_NAME}" ]		&& TSIG_KEY_NAME="${TKIP_KEY_NAME}"	# Older versions of dns.hook used TKIP_KEY{,_NAME}
+[ -n "${TKIP_KEY}" ]			&& TSIG_KEY="${TKIP_KEY}"		# instead of TSIG_KEY{,_NAME}. Brainfart...
+[ -z "${DNS_SYNC_TIMEOUT}" ]		&& DNS_SYNC_TIMEOUT=60
+[ -n "${VERBOSE}" -o -n "${DEBUG}" ]	&& VERBOSE=show
+
+if [ -z "${NSERVERS}" ]; then
+  echo "$0: At least one PRIMARY Authoritative Name Server *MUST* be set in NSERVERS" >&2
+  exit 42
+fi
+
+which kdig >/dev/null 2>&1 && DIG=kdig || DIG=dig	# use `kdig` or `dig`
+if [ ! -x "${NSUPDATE}" ]; then	# use `knsupdate` if found, otherwise use `nsupdate`
+  which knsupdate >/dev/null 2>&1 && NSUPDATE=knsupdate || NSUPDATE=nsupdate
+fi
+
+if [ -r "${TSIG_FILE}" ]; then
+  NSUPDATE="${NSUPDATE} -k ${TSIG_FILE}"
+  TSIG_KEY=''	# unset if TSIG_FILE found
+elif [ -n "${TSIG_KEY_NAME}" -a -n "${TSIG_KEY}" ]; then
+  TSIG_KEY="key ${TSIG_KEY_NAME} ${TSIG_KEY}"
+else
+  TSIG_KEY=''	# unset to authenticate updates by source IP
+fi
+
+if [ -n "${VERBOSE}" ]; then
+  echo "NSERVERS:	${NSERVERS}"
+  echo "NSUPDATE:	${NSUPDATE}"
+  echo "DIG:		${DIG}"
+fi
+
+#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#
+getSOA() {
+  local NS="$1"
+  local NAME="$2."		# append '.' root zone
+  while [ -n "${NAME}" ]; do	# check for Start Of Authority
+    if [ "$(${DIG} @${NS} ${NAME} SOA +noall +answer | awk '{print $4}')" == SOA ]; then
+      APEX=${NAME}
+      return 0
+    fi
+    NAME="$(echo -n ${NAME} | sed -E 's/^[^.]+\.//')"
+  done	# no APEX found
+  echo "$0: Could not get SOA for ${CH_HOSTNAME} on ${NS}" >&2
+  return 1
+}
+
+for NS in ${NSERVERS}; do
+  if [ -z "${APEX}" ]; then
+    getSOA ${NS} ${CH_HOSTNAME}
+  else
+    break
+  fi
+done
+
+[ -z "${APEX}" ]	&& exit 42	# bail if SOA not found on NSERVERS
+[ -n "${VERBOSE}" ]	&& echo "SOA:	${APEX}"
+
+#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#
+update() {
+  local NS="$1"https://www.knot-dns.cz/docs/3.5/html/man_knsupdate.html
+  [ -n "${VERBOSE}" ]	&& echo "NS:	${NS}"
+  cat << EOF | ${NSUPDATE}
+${TSIG_KEY}
+server ${NS}
+zone ${APEX}
+update ${EVENT} _acme-challenge.${CH_HOSTNAME}. 60 IN TXT "${CH_TXT_VALUE}"
+${VERBOSE}
+send
+quit
+EOF
+}
+
+for NS in ${NSERVERS}; do
+  update ${NS}
+done
+
+#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#
+waitns() {
+  local NS="$1"
+  for i in $(seq 1 ${DNS_SYNC_TIMEOUT}); do
+    [ -n "${VERBOSE}" ] && echo "NS:	${NS}	${i}" && ${DIG} @${NS} _acme-challenge.${CH_HOSTNAME}. TXT
+    [ "$(${DIG} @${NS} _acme-challenge.${CH_HOSTNAME}. TXT +short | sed 's/"//g')" == "${CH_TXT_VALUE}" ] && return 0
+    sleep 1
+  done
+  echo "$0: Timed out waiting ${DNS_SYNC_TIMEOUT}s for nameserver ${NS}" >&2
+  update ${NS} || echo "$0: Failed to clean up records after timing out" >&2
+  return 1
+}
+
+if [ ${EVENT} == add ]; then
+  EVENT=delete	# Best effort cleanup if DNS sync times out
+  for NS in $(${DIG} ${APEX} NS +short); do
+    waitns ${NS}
+  done
+fi
+
+#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#===#
