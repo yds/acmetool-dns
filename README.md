@@ -4,12 +4,12 @@
 A deBASHed rewrite of the [acmetool](https://github.com/hlandau/acmetool/)
 "official" [dns.hook](https://github.com/hlandau/acmetool/blob/master/_doc/contrib/dns.hook)
 script to use either [knsupdate](https://www.knot-dns.cz/docs/3.5/html/man_knsupdate.html)
-or [nsupdate](https://linux.die.net/man/8/nsupdate) to set up and tear down
-a DNS-01 ACME Challenge.
+or [nsupdate](https://linux.die.net/man/8/nsupdate) for setting up and
+tearing down a DNS-01 ACME Challenge.
 
 ## reason for making this rewrite
 
-1. make sure the scritp runs under plain old Bourne Shell
+1. make sure the script runs under plain old [Bourne Shell](https://en.wikipedia.org/wiki/Bourne_shell)
 2. add ability to update more than one Primary Name Server
 3. make the script `k?nsupdate` agnostic
 
@@ -41,6 +41,12 @@ failing to authenticate with other DNS servers which you do _not_ control.
 path of the executable in `NSUPDATE`. Otherwise the script will try to find
 [knsupdate](https://www.knot-dns.cz/docs/3.5/html/man_knsupdate.html) or
 fall back to using [nsupdate](https://linux.die.net/man/8/nsupdate).
+
+Setting `VERBOSE=show` echoes all the interesting bits for testing:
+```sh
+env VERBOSE=show ./dns challenge-dns-start example.com '' 'foobar'
+env VERBOSE=show ./dns challenge-dns-stop  example.com '' 'foobar'
+```
 
 ### 3rd: [`getSOA`](dns#L90)
 
